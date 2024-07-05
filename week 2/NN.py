@@ -34,7 +34,7 @@ class NeuralNetwork:
         """
         sigmoid_z = np.zeros(z.shape)
         # TODO implement sigmoid
-        # sigmoid_z =
+        sigmoid_z =  1.0/(1.0+np.exp(-z))
         # TODO implement sigmoid
         return sigmoid_z
 
@@ -48,7 +48,7 @@ class NeuralNetwork:
         """
         derivative_cost = np.zeros(output_activations.shape)
         # TODO calculate Derivative of cost w.r.t final activation
-        # derivative_cost =
+        derivative_cost = output_activations - y
         # TODO calculate Derivative of cost w.r.t final activation
         return derivative_cost
 
@@ -62,7 +62,9 @@ class NeuralNetwork:
         logging.info("Calcuting costs...")
         cost = 0
         # TODO calculate costs
-        # calc costs
+        for x, y in training_data:
+            output_activations = self.forward_pass(x)
+            cost += 0.5 * np.sum((output_activations - y) ** 2)
         # TODO calculate costs
         logging.info("Calcuting costs complete...")
         return cost
@@ -71,7 +73,7 @@ class NeuralNetwork:
         """Derivative of the sigmoid function."""
         derivative_sigmoid = np.zeros(z.shape)
         # TODO calculate derivative of sigmoid function
-        # derivative_sigmoid =
+        derivative_sigmoid = self.sigmoid(z)*(1-self.sigmoid(z)) 
         # TODO calculate derivative of sigmoid function
         return derivative_sigmoid
 
@@ -83,9 +85,13 @@ class NeuralNetwork:
         """
         nn_output = np.zeros((self.num_neurons_per_layer_list[-1], 1))
         # TODO do a forward pass of the NN and return the final output
-        # Here
+        nn_output = np.zeros((self.num_neurons_per_layer_list[-1], 1))
+        activation = x
+        for b, w in zip(self.biases, self.weights):
+            z = np.dot(w.T, activation) + b
+            activation = self.sigmoid(z)
+        return activation
         # TODO do a forward pass of the NN and return the final output
-        return nn_output
 
     def mini_batch_GD(self, training_data, epochs, mini_batch_size, eta, test_data):
         """ Train the neural network using mini batch gradient descent
@@ -109,7 +115,20 @@ class NeuralNetwork:
                 #  "back_propagation" function. Note that the above backward pass is for a single data point.
                 #  We'll need to calculate this for all examples in a mini batch and then sum the gradients over this
                 #  batch to do the gradient update step for all weights and biases.
+                dC_db_total = [np.zeros(b.shape) for b in self.biases]
+                dC_dw_total = [np.zeros(w.shape) for w in self.weights]
+                input__x = [mini_batch[i][0].reshape(-1,) for i in range(len(mini_batch))]
+                output_y = [mini_batch[i][1].reshape(-1,) for i in range(len(mini_batch))]
+                for i in range(len(mini_batch)):
+                    input = input__x[i].reshape(-1,1)
+                    output = output_y[i].reshape(-1,1)
+                    x,y = self.back_propagation(input,output)
+                    for j in range(len(dC_db_total)):
+                        dC_db_total[j] += x[j]
+                        dC_dw_total[j] += y[j]
                 # TODO (2) Update biases and weights using the computed gradients
+                self.weights = [w - (eta/len(mini_batch)) * dw for w, dw in zip(self.weights, dC_dw_total)]
+                self.biases = [b - (eta/len(mini_batch)) * db for b, db in zip(self.biases, dC_db_total)]
                 pass
 
             logging.info("After Epoch {}".format(j + 1))
@@ -136,6 +155,26 @@ class NeuralNetwork:
         # TODO (1) forward pass - calculate layer by layer z's and activations which will be used to calculate gradients
         # TODO (2) backward pass - calculate gradients starting with the output layer and then the hidden layers
         # TODO (3) Return the graduents in lists dC_db, dC_dw
+        activation = x
+        activations = [x]
+        zs = []
+        for b, w in zip(self.biases, self.weights):
+            z = np.dot(w.T, activation) + b
+            zs.append(z)
+            activation = self.sigmoid(z)
+            activations.append(activation)
+
+        # backward pass
+        delta = self.cost_derivative(activations[-1], y) * self.sigmoid_derivative(zs[-1])
+        dC_db[-1] = delta
+        dC_dw[-1] = np.dot(activations[-2], delta.T)
+
+        for l in range(2, self.num_layers):
+            z = zs[-l]
+            sp = self.sigmoid_derivative(z)
+            delta = np.dot(self.weights[-l+1], delta) * sp
+            dC_db[-l] = delta
+            dC_dw[-l] = np.dot(activations[-l-1], delta.T)
         return dC_db, dC_dw
 
     def test_accuracy(self, test_data):
